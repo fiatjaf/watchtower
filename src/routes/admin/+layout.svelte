@@ -6,6 +6,7 @@
 	import { admin } from '$lib/admin.svelte.js';
 	import Button from '$lib/components/Button.svelte';
 	import CopyButton from '$lib/components/CopyButton.svelte';
+	import Footer from '$lib/components/Footer.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -47,6 +48,10 @@
 	// banner below, so the text does not change while pages load.
 	const statusLabel = $derived(statusLabels[relayConnection.status]);
 	const statusDot = $derived(statusDots[relayConnection.status]);
+	/** Tab title follows the navigation entry of the current screen. */
+	const pageTitle = $derived(
+		links.find((link) => link.href === page.url.pathname)?.label ?? 'Admin'
+	);
 	const canReconnect = $derived(
 		relayConnection.status === 'offline' || relayConnection.status === 'failed'
 	);
@@ -81,6 +86,8 @@
 		void goto(resolve('/')).catch(() => {});
 	}
 </script>
+
+<svelte:head><title>{pageTitle} | Tower</title></svelte:head>
 
 {#if session.isAuthenticated}
 	<div class="min-h-screen bg-bg text-ink">
@@ -136,6 +143,8 @@
 		<main class="mx-auto max-w-3xl px-4 py-6">
 			{@render children()}
 		</main>
+
+		<Footer />
 
 		{#if signerActivity.pending}
 			<div
