@@ -8,9 +8,11 @@
 	import CopyButton from '$lib/components/CopyButton.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import Logo from '$lib/components/Logo.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { relayConnection } from '$lib/relay-connection.svelte.js';
 	import { session } from '$lib/session.svelte.js';
+	import { signerActivity } from '$lib/signer-activity.svelte.js';
 
 	let { children } = $props();
 
@@ -41,6 +43,8 @@
 		failed: 'bg-red-500'
 	} as const;
 
+	// The header reports the connection only; extension prompts are shown by the
+	// banner below, so the text does not change while pages load.
 	const statusLabel = $derived(statusLabels[relayConnection.status]);
 	const statusDot = $derived(statusDots[relayConnection.status]);
 	const canReconnect = $derived(
@@ -57,6 +61,11 @@
 	onDestroy(() => relayConnection.stop());
 
 	$effect(() => {
+		if (session.isAuthenticated && !session.signer) {
+			// The extension is gone (uninstalled or another browser profile).
+			session.signOut();
+			return;
+		}
 		if (!session.isAuthenticated) {
 			void goto(resolve('/'));
 		}
@@ -123,5 +132,19 @@
 		<main class="mx-auto max-w-3xl px-4 py-6">
 			{@render children()}
 		</main>
+
+		{#if signerActivity.pending}
+			<div
+				class="pointer-events-none fixed inset-x-0 bottom-4 flex justify-center px-4"
+				role="status"
+			>
+				<span
+					class="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1.5 text-xs text-ink panel-shadow"
+				>
+					<Spinner label="Waiting for the browser extension" />
+					Waiting for the browser extension to approve...
+				</span>
+			</div>
+		{/if}
 	</div>
 {/if}
