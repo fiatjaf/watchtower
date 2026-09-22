@@ -27,8 +27,6 @@
 	let allowReason = $state('');
 
 	const canListBanned = $derived(admin.supports('listbannedevents'));
-	const canBan = $derived(admin.supports('banevent'));
-	const canAllow = $derived(admin.supports('allowevent'));
 
 	onMount(async () => {
 		try {
@@ -108,10 +106,10 @@
 				<Spinner label="Loading the event ban list" />
 				Loading...
 			</p>
-		{:else if !canListBanned}
+		{:else if admin.lacks('listbannedevents')}
 			<Notice>This relay does not support listbannedevents, so current bans cannot be shown.</Notice
 			>
-		{:else}
+		{:else if admin.ready}
 			<ValueList items={toItems(banned)} empty="No events are banned." showAction={false} />
 		{/if}
 		<p class="text-xs text-muted">
@@ -121,9 +119,9 @@
 	</Panel>
 
 	<Panel title="Ban an event" description="banevent">
-		{#if !canBan}
+		{#if admin.lacks('banevent')}
 			<Notice>This relay does not support banevent.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<form
 				class="grid gap-3 sm:grid-cols-2"
 				onsubmit={(event) => {
@@ -143,9 +141,9 @@
 	</Panel>
 
 	<Panel title="Allow an event" description="allowevent">
-		{#if !canAllow}
+		{#if admin.lacks('allowevent')}
 			<Notice>This relay does not support allowevent.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<form
 				class="grid gap-3 sm:grid-cols-2"
 				onsubmit={(event) => {

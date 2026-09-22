@@ -56,6 +56,10 @@ export interface Nip86ClientOptions {
 	fetch?: typeof globalThis.fetch;
 	/** Fixed timestamp for tests; production uses the current time. */
 	created_at?: number;
+	/** How long to wait for the relay; defaults to 15 seconds. */
+	timeoutMs?: number;
+	/** Own abort signal; replaces the default timeout. */
+	signal?: AbortSignal;
 }
 
 export interface Nip86Client {
@@ -78,51 +82,89 @@ export async function callNip86<T = unknown>(
 	const endpoint = relayHttpUrl(relayUrl);
 	const body = JSON.stringify({ method, params } satisfies Nip86Request);
 	const fetchFn = options.fetch ?? globalThis.fetch;
+	const signal = options.signal ?? AbortSignal.timeout(options.timeoutMs ?? 15_000);
 
 	async function send(uTag: string): Promise<Response> {
-		return fetchFn(endpoint, {
-			method: 'POST',
-			headers: {
-				'Content-Type': NIP86_CONTENT_TYPE,
-				Authorization: await createAuthorizationHeader(options.signer, {
-					url: uTag,
-					method: 'POST',
-					body,
-					created_at: options.created_at
-				})
-			},
-			body
-		});
+		try {
+			return await fetchFn(endpoint, {
+				method: 'POST',
+				headers: {
+					'Content-Type': NIP86_CONTENT_TYPE,
+					Authorization: await createAuthorizationHeader(options.signer, {
+						url: uTag,
+						method: 'POST',
+						body,
+						created_at: options.created_at
+					})
+				},
+				body,
+				signal
+			});
+		} catch (cause) {
+			throw new Nip86Error(describeTransportFailure(cause), { cause });
+		}
+	}
+
+	/** Relays often explain a rejection in the body; keep that for the message. */
+	async function reasonOf(response: Response): Promise<string> {
+		const text = await response.text().catch(() => '');
+		if (!text) return '';
+		try {
+			const payload: unknown = JSON.parse(text);
+			if (typeof payload === 'object' && payload !== null) {
+				const error = (payload as { error?: unknown }).error;
+				if (typeof error === 'string' && error !== '') return `: ${error}`;
+			}
+		} catch {
+			// Not JSON: fall through to the raw text.
+		}
+		const detail = text.trim().slice(0, 120);
+		return detail ? `: ${detail}` : '';
 	}
 
 	let response = await send(endpoint);
 	if (response.status === 401 || response.status === 403) {
 		// NIP-86 calls the u tag "the relay URL", so some relays compare it
 		// against the websocket URL instead of the request URL.
-		await response.body?.cancel();
+		const firstReason = await reasonOf(response);
 		response = await send(relayUrl);
-	}
-
-	if (response.status === 401 || response.status === 403) {
-		throw new Nip86AuthError(`relay rejected the request (HTTP ${response.status})`);
+		if (response.status === 401 || response.status === 403) {
+			const reason = (await reasonOf(response)) || firstReason;
+			throw new Nip86AuthError(`relay rejected the request (HTTP ${response.status})${reason}`);
+		}
 	}
 
 	const text = await response.text();
-	let payload: Nip86Response;
+	let payload: unknown;
 	try {
-		payload = JSON.parse(text) as Nip86Response;
+		payload = JSON.parse(text);
 	} catch (cause) {
 		throw new Nip86Error(`relay returned invalid JSON (HTTP ${response.status})`, { cause });
 	}
+	if (typeof payload !== 'object' || payload === null) {
+		throw new Nip86Error(
+			`relay returned ${text.trim().slice(0, 60) || 'an empty body'} (HTTP ${response.status})`
+		);
+	}
 
 	// Relays such as khatru answer 200 and put failures into `error`.
-	if (typeof payload?.error === 'string' && payload.error !== '') {
-		throw new Nip86Error(payload.error);
+	const { result, error } = payload as Nip86Response;
+	if (typeof error === 'string' && error !== '') {
+		throw new Nip86Error(error);
 	}
 	if (!response.ok) {
 		throw new Nip86Error(`relay returned HTTP ${response.status}`);
 	}
-	return payload.result as T;
+	return result as T;
+}
+
+/** Turns fetch failures into something a person can read. */
+function describeTransportFailure(cause: unknown): string {
+	const message = cause instanceof Error ? cause.message : String(cause);
+	if (cause instanceof Error && (cause.name === 'TimeoutError' || cause.name === 'AbortError')) {
+		return 'the relay did not answer in time';
+	}
+	return `could not reach the relay: ${message}`;
 }
 
 /** Client bound to one relay and one admin key. */

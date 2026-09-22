@@ -51,7 +51,10 @@ export function parseRelayInformation(value: unknown): RelayInformation {
 export interface FetchRelayInformationOptions {
 	/** Replaceable for tests. */
 	fetch?: typeof globalThis.fetch;
+	/** Own abort signal; replaces the default timeout. */
 	signal?: AbortSignal;
+	/** How long to wait for the relay; defaults to 15 seconds. */
+	timeoutMs?: number;
 }
 
 /** Reads the NIP-11 document of a relay over plain HTTP. */
@@ -60,10 +63,22 @@ export async function fetchRelayInformation(
 	options: FetchRelayInformationOptions = {}
 ): Promise<RelayInformation> {
 	const fetchFn = options.fetch ?? globalThis.fetch;
-	const response = await fetchFn(relayHttpUrl(relayUrl), {
-		headers: { Accept: NIP11_ACCEPT },
-		signal: options.signal
-	});
+	const signal = options.signal ?? AbortSignal.timeout(options.timeoutMs ?? 15_000);
+
+	let response: Response;
+	try {
+		response = await fetchFn(relayHttpUrl(relayUrl), {
+			headers: { Accept: NIP11_ACCEPT },
+			signal
+		});
+	} catch (cause) {
+		const message = cause instanceof Error ? cause.message : String(cause);
+		if (cause instanceof Error && (cause.name === 'TimeoutError' || cause.name === 'AbortError')) {
+			throw new Error('the relay did not answer in time for its information document', { cause });
+		}
+		throw new Error(`could not read the relay information: ${message}`, { cause });
+	}
+
 	if (!response.ok) {
 		throw new Error(`the relay answered HTTP ${response.status} for its information document`);
 	}

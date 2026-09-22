@@ -113,7 +113,7 @@
 		<Notice tone="success">{success}</Notice>
 	{/if}
 
-	{#if !canManage}
+	{#if admin.ready && !canManage}
 		<Notice>
 			This relay does not support any of the role methods (createrole, editrole, deleterole,
 			assignrole, unassignrole).
@@ -148,9 +148,9 @@
 	</Panel>
 
 	<Panel title="Assign a role" description="assignrole / unassignrole">
-		{#if !canAssign && !canUnassign}
+		{#if admin.ready && !canAssign && !canUnassign}
 			<Notice>This relay does not support assignrole or unassignrole.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<div class="grid gap-3 sm:grid-cols-2">
 				<TextField
 					label="Pubkey (hex or npub)"

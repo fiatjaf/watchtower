@@ -1,5 +1,6 @@
 import { parseRelayMessage } from './relay-message';
 import { normalizeRelayUrl } from './relay-url';
+import { verifyEvent } from './event';
 import type { NostrEvent, NostrFilter } from './types';
 
 const SOCKET_OPEN = 1;
@@ -21,6 +22,10 @@ export interface RelayClientOptions {
 	auth?: (challenge: string) => NostrEvent | null | Promise<NostrEvent | null>;
 	/** How the relay reacted to our authentication event. */
 	onAuth?: (state: 'required' | 'ok' | 'failed') => void;
+	/** Check the signature of incoming events before handing them over. */
+	verifyEvents?: boolean;
+	/** How long the websocket handshake may take; defaults to 15 seconds. */
+	connectTimeoutMs?: number;
 }
 
 export interface SubscriptionHandlers {
@@ -53,6 +58,9 @@ export class RelayClient {
 	#onDisconnect: ((reason: string) => void) | undefined;
 	#auth: ((challenge: string) => NostrEvent | null | Promise<NostrEvent | null>) | undefined;
 	#onAuth: ((state: 'required' | 'ok' | 'failed') => void) | undefined;
+	#verifyEvents: boolean;
+	#connectTimeoutMs: number;
+	#authChallenge: string | null = null;
 	#authEventId: string | null = null;
 	#authenticated = false;
 	#authRequested = false;
@@ -65,6 +73,8 @@ export class RelayClient {
 		this.#onDisconnect = options.onDisconnect;
 		this.#auth = options.auth;
 		this.#onAuth = options.onAuth;
+		this.#verifyEvents = options.verifyEvents ?? false;
+		this.#connectTimeoutMs = options.connectTimeoutMs ?? 15_000;
 	}
 
 	get connected(): boolean {
@@ -94,13 +104,22 @@ export class RelayClient {
 		this.#closing = false;
 
 		socket.addEventListener('message', (event) => {
+			// Ignore anything that arrives from a socket we already replaced.
+			if (socket !== this.#socket) return;
 			this.#handleMessage((event as MessageEvent).data);
 		});
 		socket.addEventListener('close', (event) => {
+			if (socket !== this.#socket) return;
 			this.#handleClose((event as CloseEvent).reason ?? '');
 		});
 
 		this.#connecting = new Promise<void>((resolve, reject) => {
+			const timer = setTimeout(() => {
+				cleanup();
+				socket.close();
+				reject(new Error(`the relay did not answer at ${this.url}`));
+			}, this.#connectTimeoutMs);
+
 			const onOpen = () => {
 				cleanup();
 				resolve();
@@ -114,6 +133,7 @@ export class RelayClient {
 				reject(new Error(`connection to ${this.url} closed before it opened`));
 			};
 			const cleanup = () => {
+				clearTimeout(timer);
 				socket.removeEventListener('open', onOpen);
 				socket.removeEventListener('error', onError);
 				socket.removeEventListener('close', onClose);
@@ -132,8 +152,9 @@ export class RelayClient {
 	/** Sends a REQ and reports matching events through the handlers. */
 	subscribe(filters: NostrFilter[], handlers: SubscriptionHandlers = {}): RelaySubscription {
 		const id = `tower-${++this.#counter}`;
-		this.#subscriptions.set(id, { handlers, filters });
+		// Send first: a failed send must not leave a subscription nobody can close.
 		this.#send(['REQ', id, ...filters]);
+		this.#subscriptions.set(id, { handlers, filters });
 		return {
 			id,
 			close: () => this.#closeSubscription(id)
@@ -148,6 +169,7 @@ export class RelayClient {
 		this.#subscriptions.clear();
 		this.#authenticated = false;
 		this.#authRequested = false;
+		this.#authChallenge = null;
 		this.#authEventId = null;
 		if (socket && socket.readyState !== SOCKET_CLOSED) {
 			socket.close();
@@ -184,6 +206,7 @@ export class RelayClient {
 
 		switch (message.type) {
 			case 'event':
+				if (this.#verifyEvents && !verifyEvent(message.event)) return;
 				this.#subscriptions.get(message.subscriptionId)?.handlers.onEvent?.(message.event);
 				break;
 			case 'eose':
@@ -226,19 +249,23 @@ export class RelayClient {
 			this.#onAuth?.('required');
 			return;
 		}
+		// Remember which challenge we are answering: the relay may ask again
+		// while the signer still has a prompt open.
+		this.#authChallenge = challenge;
+
 		try {
 			const event = await auth(challenge);
+			if (this.#authChallenge !== challenge) return; // a newer challenge is pending
 			if (!event) {
 				this.#onAuth?.('required');
 				return;
 			}
-			// Signing can take a moment (an extension may ask the user) and the
-			// connection can be gone by then.
+			// Signing can take a moment and the connection can be gone by then.
 			if (this.#socket?.readyState !== SOCKET_OPEN) return;
 			this.#authEventId = event.id;
 			this.#send(['AUTH', event]);
 		} catch {
-			this.#onAuth?.('failed');
+			if (this.#authChallenge === challenge) this.#onAuth?.('failed');
 		}
 	}
 
@@ -259,6 +286,7 @@ export class RelayClient {
 		this.#subscriptions.clear();
 		this.#authenticated = false;
 		this.#authRequested = false;
+		this.#authChallenge = null;
 		this.#authEventId = null;
 		if (!intentional) {
 			this.#onDisconnect?.(reason || 'relay connection closed');

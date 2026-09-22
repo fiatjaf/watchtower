@@ -29,6 +29,11 @@ export function normalizeRelayUrl(input: string): string {
 			throw new Error('relay URL must use ws://, wss://, http:// or https://');
 	}
 
+	// A secure page cannot open a ws:// websocket at all.
+	if (url.protocol === 'ws:' && globalThis.location?.protocol === 'https:') {
+		throw new Error('this page is served over HTTPS, so the relay URL must use wss://');
+	}
+
 	if (!url.hostname) {
 		throw new Error('relay URL must include a host');
 	}

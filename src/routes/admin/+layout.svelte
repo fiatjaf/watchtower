@@ -63,18 +63,22 @@
 	$effect(() => {
 		if (session.isAuthenticated && !session.signer) {
 			// The extension is gone (uninstalled or another browser profile).
+			admin.reset();
 			session.signOut();
 			return;
 		}
 		if (!session.isAuthenticated) {
-			void goto(resolve('/'));
+			admin.reset();
+			// A failed redirect leaves the page as it is; nothing to do here.
+			void goto(resolve('/')).catch(() => {});
 		}
 	});
 
 	function signOut() {
 		relayConnection.stop();
+		admin.reset();
 		session.signOut();
-		void goto(resolve('/'));
+		void goto(resolve('/')).catch(() => {});
 	}
 </script>
 

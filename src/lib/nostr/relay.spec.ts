@@ -1,4 +1,6 @@
+import { hexToBytes } from '@noble/hashes/utils.js';
 import { describe, expect, it, vi } from 'vitest';
+import { finalizeEvent } from './event';
 import { RelayClient, type RelayClientOptions } from './relay';
 import type { NostrEvent, NostrFilter } from './types';
 
@@ -383,5 +385,81 @@ describe('RelayClient authentication', () => {
 		socket.message(JSON.stringify(['OK', 'c'.repeat(64), true, '']));
 
 		expect(onAuth).not.toHaveBeenCalled();
+	});
+});
+
+const SIGNING_KEY = hexToBytes('0000000000000000000000000000000000000000000000000000000000000003');
+const SIGNED_EVENT = finalizeEvent(SIGNING_KEY, {
+	kind: 1,
+	created_at: 1_700_000_000,
+	content: 'hello'
+});
+
+describe('RelayClient event verification', () => {
+	it('drops events whose signature does not check out', async () => {
+		const { client, sockets } = createClient({ verifyEvents: true });
+		const connecting = client.connect();
+		sockets[0].open();
+		await connecting;
+
+		const onEvent = vi.fn();
+		const subscription = client.subscribe([FILTER], { onEvent });
+
+		sockets[0].message(
+			JSON.stringify(['EVENT', subscription.id, { ...SIGNED_EVENT, content: 'tampered' }])
+		);
+		expect(onEvent).not.toHaveBeenCalled();
+
+		sockets[0].message(JSON.stringify(['EVENT', subscription.id, SIGNED_EVENT]));
+		expect(onEvent).toHaveBeenCalledWith(SIGNED_EVENT);
+	});
+});
+
+describe('RelayClient handshake', () => {
+	it('gives up when the relay never answers the handshake', async () => {
+		const { client, sockets } = createClient({ connectTimeoutMs: 20 });
+
+		const connecting = client.connect();
+
+		await expect(connecting).rejects.toThrow(/did not answer/);
+		expect(client.connected).toBe(false);
+		expect(sockets[0].readyState).toBe(3);
+	});
+
+	it('ignores a late close from a socket it already replaced', async () => {
+		const onDisconnect = vi.fn();
+		const { client, sockets } = createClient({ onDisconnect });
+
+		const first = client.connect();
+		const dead = sockets[0];
+		dead.error();
+		await expect(first).rejects.toThrow();
+
+		const second = client.connect();
+		sockets[1].open();
+		await second;
+		expect(client.connected).toBe(true);
+
+		// The old socket reports its close later; it must not touch the new one.
+		dead.readyState = 3;
+		dead.emit('close', { code: 1006, reason: 'late close' });
+
+		expect(client.connected).toBe(true);
+		expect(onDisconnect).not.toHaveBeenCalled();
+	});
+
+	it('leaves no subscription behind when it cannot send', async () => {
+		const { client, sockets } = createClient({ auth: () => AUTH_EVENT });
+
+		expect(() => client.subscribe([FILTER])).toThrow(/not connected/);
+
+		const connecting = client.connect();
+		sockets[0].open();
+		await connecting;
+		sockets[0].message(JSON.stringify(['AUTH', 'challenge-1']));
+		await vi.waitFor(() => expect(sockets[0].sent).toContain(JSON.stringify(['AUTH', AUTH_EVENT])));
+		sockets[0].message(JSON.stringify(['OK', AUTH_EVENT.id, true, '']));
+
+		expect(sockets[0].sent.filter((message) => message.startsWith('["REQ"'))).toHaveLength(0);
 	});
 });

@@ -1,6 +1,6 @@
 import { hexToBytes } from '@noble/hashes/utils.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { finalizeEvent, verifyEvent } from './event';
+import { finalizeEvent, getEventId, signSchnorr, verifyEvent } from './event';
 import { browserNostrProvider, LocalSigner, Nip07Signer, type Nip07Provider } from './signer';
 import type { EventTemplate } from './types';
 
@@ -158,6 +158,22 @@ describe('Nip07Signer', () => {
 
 		const event = await new Nip07Signer(wrapped, PUBKEY).signEvent({ kind: 1, content: 'hello' });
 
+		expect(verifyEvent(event)).toBe(true);
+	});
+
+	it('accepts an event whose pubkey comes back in upper case', async () => {
+		const upper = extension({
+			signEvent: async (template: EventTemplate) => {
+				const base = finalizeEvent(SECRET_KEY, template);
+				const pubkey = base.pubkey.toUpperCase();
+				const id = getEventId({ ...base, pubkey });
+				return { ...base, pubkey, id, sig: signSchnorr(hexToBytes(id), SECRET_KEY) };
+			}
+		});
+
+		const event = await new Nip07Signer(upper, PUBKEY).signEvent({ kind: 1 });
+
+		expect(event.pubkey).toBe(PUBKEY.toUpperCase());
 		expect(verifyEvent(event)).toBe(true);
 	});
 

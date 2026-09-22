@@ -24,7 +24,6 @@
 	let ipReason = $state('');
 
 	const canList = $derived(admin.supports('listblockedips'));
-	const canBlock = $derived(admin.supports('blockip'));
 	const canUnblock = $derived(admin.supports('unblockip'));
 
 	onMount(async () => {
@@ -106,10 +105,10 @@
 				<Spinner label="Loading the block list" />
 				Loading...
 			</p>
-		{:else if !canList}
+		{:else if admin.lacks('listblockedips')}
 			<Notice>This relay does not support listblockedips, so current blocks cannot be shown.</Notice
 			>
-		{:else}
+		{:else if admin.ready}
 			<ValueList
 				items={toItems(blocked)}
 				empty="No IP addresses are blocked."
@@ -121,9 +120,9 @@
 			/>
 		{/if}
 
-		{#if !canBlock}
+		{#if admin.lacks('blockip')}
 			<Notice>This relay does not support blockip.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<form
 				class="grid gap-3 border-t border-line pt-4 sm:grid-cols-2"
 				onsubmit={(event) => {

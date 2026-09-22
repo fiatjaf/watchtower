@@ -214,9 +214,9 @@
 		title="Change relay information"
 		description="changerelayname / changerelaydescription / changerelayicon"
 	>
-		{#if !canName}
+		{#if admin.lacks('changerelayname')}
 			<Notice>This relay does not support changerelayname.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<form
 				class="flex flex-wrap items-end gap-3"
 				onsubmit={(event) => {
@@ -231,9 +231,9 @@
 			</form>
 		{/if}
 
-		{#if !canDescription}
+		{#if admin.lacks('changerelaydescription')}
 			<Notice>This relay does not support changerelaydescription.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<form
 				class="flex flex-wrap items-end gap-3 border-t border-line pt-4"
 				onsubmit={(event) => {
@@ -257,9 +257,9 @@
 			</form>
 		{/if}
 
-		{#if !canIcon}
+		{#if admin.lacks('changerelayicon')}
 			<Notice>This relay does not support changerelayicon.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<form
 				class="flex flex-wrap items-end gap-3 border-t border-line pt-4"
 				onsubmit={(event) => {

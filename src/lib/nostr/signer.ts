@@ -111,8 +111,12 @@ export class Nip07Signer implements Signer {
 	async getPublicKey(): Promise<string> {
 		this.#onActivity?.(true);
 		try {
+			const returned: unknown = await this.#provider.getPublicKey();
+			if (typeof returned !== 'string') {
+				throw new Error('the browser extension did not return a public key');
+			}
 			// Extensions should answer with hex, but npub is accepted as well.
-			return pubkeyHexFromInput(await this.#provider.getPublicKey());
+			return pubkeyHexFromInput(returned);
 		} finally {
 			this.#onActivity?.(false);
 		}
@@ -141,7 +145,7 @@ export class Nip07Signer implements Signer {
 			if (!verifyEvent(signed)) {
 				throw new Error('the browser extension returned an event with an invalid signature');
 			}
-			if (this.#expectedPubkey !== null && signed.pubkey !== this.#expectedPubkey) {
+			if (this.#expectedPubkey !== null && signed.pubkey.toLowerCase() !== this.#expectedPubkey) {
 				throw new Error('the browser extension now signs with a different key; sign in again');
 			}
 			return signed;

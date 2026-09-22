@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { admin, describeError } from '$lib/admin.svelte.js';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -8,7 +8,8 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Panel from '$lib/components/Panel.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import type { RelayClient } from '$lib/nostr/relay';
+	import type { RelayClient, RelaySubscription } from '$lib/nostr/relay';
+	import { verifyEvent } from '$lib/nostr/event';
 	import type { NostrEvent } from '$lib/nostr/types';
 	import { relayConnection } from '$lib/relay-connection.svelte.js';
 	import { signerActivity } from '$lib/signer-activity.svelte.js';
@@ -27,6 +28,8 @@
 	let busy = $state<string | null>(null);
 	let error = $state<string | null>(null);
 	let success = $state<string | null>(null);
+	/** Subscription of the event being read, so leaving the page closes it. */
+	let active: RelaySubscription | null = null;
 
 	const canList = $derived(admin.supports('listeventsneedingmoderation'));
 	const canAllow = $derived(admin.supports('allowevent'));
@@ -50,7 +53,11 @@
 		return new Promise<NostrEvent>((resolve, reject) => {
 			let timer = setTimeout(checkTimeout, REQUEST_TIMEOUT);
 			const subscription = connection.subscribe([{ ids: [id], limit: 1 }], {
-				onEvent: (event) => finish(() => resolve(event)),
+				onEvent: (event) => {
+					// Only trust the event we asked for, and only if it verifies.
+					if (event.id !== id || !verifyEvent(event)) return;
+					finish(() => resolve(event));
+				},
 				onEose: () => {
 					// Before NIP-42 is accepted the relay answers EOSE without
 					// events, and the REQ is sent again after authentication.
@@ -60,6 +67,8 @@
 				onClosed: (message) =>
 					finish(() => reject(new Error(message || 'the subscription was closed')))
 			});
+			// Remember the subscription so leaving the page closes it.
+			active = subscription;
 
 			/** While the extension shows a prompt, keep waiting for it. */
 			function checkTimeout(): void {
@@ -73,10 +82,13 @@
 			function finish(settle: () => void): void {
 				clearTimeout(timer);
 				subscription.close();
+				if (active === subscription) active = null;
 				settle();
 			}
 		});
 	}
+
+	onDestroy(() => active?.close());
 
 	async function loadEvent(id: string): Promise<void> {
 		error = null;
@@ -154,8 +166,10 @@
 				<Spinner label="Loading the moderation queue" />
 				Loading...
 			</p>
-		{:else if !canList}
+		{:else if admin.lacks('listeventsneedingmoderation')}
 			<Notice>This relay does not support listeventsneedingmoderation.</Notice>
+		{:else if !admin.ready}
+			<!-- Nothing to show: the notice above explains the failure. -->
 		{:else if queue.length === 0}
 			<p
 				class="rounded-md border border-dashed border-line px-3 py-8 text-center text-sm text-muted"

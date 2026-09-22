@@ -158,4 +158,41 @@ describe('callNip86', () => {
 			callNip86({ relayUrl: RELAY_URL, signer, fetch }, 'supportedmethods')
 		).rejects.toThrow(/HTTP 500/);
 	});
+
+	it('reports a body that is not a JSON object instead of crashing', async () => {
+		const { fetch } = fakeFetch(() => new Response('null', { status: 200 }));
+		await expect(
+			callNip86({ relayUrl: RELAY_URL, signer, fetch }, 'supportedmethods')
+		).rejects.toThrow(/returned null/);
+	});
+
+	it('keeps the reason the relay gave for rejecting the request', async () => {
+		const { fetch } = fakeFetch(() =>
+			jsonResponse({ error: 'invalid auth event payload hash' }, 401)
+		);
+		await expect(
+			callNip86({ relayUrl: RELAY_URL, signer, fetch }, 'supportedmethods')
+		).rejects.toThrow(/invalid auth event payload hash/);
+	});
+
+	it('gives up on a relay that never answers', async () => {
+		const fetch = ((_input: RequestInfo | URL, init?: RequestInit) =>
+			new Promise<Response>((_resolve, reject) => {
+				init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+			})) as typeof globalThis.fetch;
+
+		await expect(
+			callNip86({ relayUrl: RELAY_URL, signer, fetch, timeoutMs: 20 }, 'supportedmethods')
+		).rejects.toThrow(/did not answer in time/);
+	});
+
+	it('reports a relay that cannot be reached', async () => {
+		const fetch = (async () => {
+			throw new TypeError('fetch failed');
+		}) as typeof globalThis.fetch;
+
+		await expect(
+			callNip86({ relayUrl: RELAY_URL, signer, fetch }, 'supportedmethods')
+		).rejects.toThrow(/could not reach the relay/);
+	});
 });

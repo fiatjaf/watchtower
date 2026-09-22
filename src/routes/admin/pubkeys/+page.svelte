@@ -27,9 +27,7 @@
 	let allowKey = $state('');
 	let allowReason = $state('');
 
-	const canBan = $derived(admin.supports('banpubkey'));
 	const canUnban = $derived(admin.supports('unbanpubkey'));
-	const canAllow = $derived(admin.supports('allowpubkey'));
 	const canUnallow = $derived(admin.supports('unallowpubkey'));
 	const canListBanned = $derived(admin.supports('listbannedpubkeys'));
 	const canListAllowed = $derived(admin.supports('listallowedpubkeys'));
@@ -147,11 +145,11 @@
 				<Spinner label="Loading the ban list" />
 				Loading...
 			</p>
-		{:else if !canListBanned}
+		{:else if admin.lacks('listbannedpubkeys')}
 			<Notice
 				>This relay does not support listbannedpubkeys, so current bans cannot be shown.</Notice
 			>
-		{:else}
+		{:else if admin.ready}
 			<ValueList
 				items={toItems(banned)}
 				empty="No pubkeys are banned."
@@ -167,9 +165,9 @@
 			/>
 		{/if}
 
-		{#if !canBan}
+		{#if admin.lacks('banpubkey')}
 			<Notice>This relay does not support banpubkey.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<form
 				class="grid gap-3 border-t border-line pt-4 sm:grid-cols-2"
 				onsubmit={(event) => {
@@ -194,11 +192,11 @@
 				<Spinner label="Loading the allow list" />
 				Loading...
 			</p>
-		{:else if !canListAllowed}
+		{:else if admin.lacks('listallowedpubkeys')}
 			<Notice
 				>This relay does not support listallowedpubkeys, so current entries cannot be shown.</Notice
 			>
-		{:else}
+		{:else if admin.ready}
 			<ValueList
 				items={toItems(allowed)}
 				empty="No pubkeys are allowed."
@@ -214,9 +212,9 @@
 			/>
 		{/if}
 
-		{#if !canAllow}
+		{#if admin.lacks('allowpubkey')}
 			<Notice>This relay does not support allowpubkey.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<form
 				class="grid gap-3 border-t border-line pt-4 sm:grid-cols-2"
 				onsubmit={(event) => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { normalizeRelayUrl, relayHttpUrl } from './relay-url';
 
 describe('normalizeRelayUrl', () => {
@@ -27,6 +27,18 @@ describe('normalizeRelayUrl', () => {
 		expect(() => normalizeRelayUrl('relay.example.com')).toThrow(/not a valid URL/);
 		expect(() => normalizeRelayUrl('ftp://relay.example.com')).toThrow(/ws:\/\//);
 	});
+
+	it('refuses ws:// when the page itself is served over HTTPS', () => {
+		vi.stubGlobal('location', { protocol: 'https:' });
+
+		expect(() => normalizeRelayUrl('ws://relay.example.com')).toThrow(/wss:\/\//);
+		expect(() => normalizeRelayUrl('http://relay.example.com')).toThrow(/wss:\/\//);
+		expect(normalizeRelayUrl('wss://relay.example.com')).toBe('wss://relay.example.com/');
+
+		vi.unstubAllGlobals();
+	});
+
+	afterEach(() => vi.unstubAllGlobals());
 });
 
 describe('relayHttpUrl', () => {

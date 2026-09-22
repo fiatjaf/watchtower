@@ -21,7 +21,8 @@
 
 	$effect(() => {
 		if (session.isAuthenticated) {
-			void goto(resolve('/admin'));
+			// A failed redirect leaves the page as it is; nothing to do here.
+			void goto(resolve('/admin')).catch(() => {});
 		}
 	});
 

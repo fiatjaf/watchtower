@@ -63,24 +63,34 @@ export class RelayConnection {
 				if (state === 'ok') this.status = 'authenticated';
 				else if (state === 'failed') this.status = 'failed';
 			},
-			onNotice: (message) => (this.notice = message),
+			onNotice: (message) => {
+				if (this.#client === client) this.notice = message;
+			},
 			onDisconnect: () => {
 				if (this.#client === client) this.#scheduleRetry();
-			}
+			},
+			// The moderation screen shows relay content to a person; only trust
+			// events whose signature checks out.
+			verifyEvents: true
 		});
 
 		this.#client = client;
 		this.status = 'connecting';
-		client.connect().then(
-			() => {
-				if (this.#client === client && this.status === 'connecting') {
-					this.status = 'connected';
-				}
-			},
-			() => {
-				if (this.#client === client) this.#scheduleRetry();
+		void this.#connect(client);
+	}
+
+	/** Resolves when connected, or schedules the usual retry when it fails. */
+	async #connect(client: RelayClient): Promise<void> {
+		try {
+			await client.connect();
+			if (this.#client === client && this.status === 'connecting') {
+				this.status = 'connected';
 			}
-		);
+		} catch {
+			// Also covers a factory that throws right away, for example a ws://
+			// URL that the browser refuses to open from a secure page.
+			if (this.#client === client) this.#scheduleRetry();
+		}
 	}
 
 	/** Closes the connection, for example when signing out. */
@@ -96,6 +106,7 @@ export class RelayConnection {
 		const client = this.#client;
 		this.#client = null;
 		this.#key = '';
+		this.notice = null;
 		client?.close();
 		this.status = 'offline';
 	}

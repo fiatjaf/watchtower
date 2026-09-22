@@ -17,7 +17,6 @@
 	let kindInput = $state('1');
 
 	const canList = $derived(admin.supports('listallowedkinds'));
-	const canAllow = $derived(admin.supports('allowkind'));
 	const canDisallow = $derived(admin.supports('disallowkind'));
 
 	onMount(async () => {
@@ -62,8 +61,13 @@
 	}
 
 	async function allow(): Promise<void> {
-		const kind = Number(kindInput.trim());
-		if (!Number.isInteger(kind) || kind < 0 || kind > 65535) {
+		const raw = kindInput.trim();
+		if (!/^\d+$/.test(raw)) {
+			error = 'Enter a kind number between 0 and 65535.';
+			return;
+		}
+		const kind = Number(raw);
+		if (kind > 65535) {
 			error = 'Enter a kind number between 0 and 65535.';
 			return;
 		}
@@ -92,11 +96,11 @@
 				<Spinner label="Loading the kind list" />
 				Loading...
 			</p>
-		{:else if !canList}
+		{:else if admin.lacks('listallowedkinds')}
 			<Notice
 				>This relay does not support listallowedkinds, so current entries cannot be shown.</Notice
 			>
-		{:else}
+		{:else if admin.ready}
 			<ValueList
 				items={toItems(kinds)}
 				empty="No kind restriction is set."
@@ -112,9 +116,9 @@
 			/>
 		{/if}
 
-		{#if !canAllow}
+		{#if admin.lacks('allowkind')}
 			<Notice>This relay does not support allowkind.</Notice>
-		{:else}
+		{:else if admin.ready}
 			<form
 				class="flex flex-wrap items-end gap-3 border-t border-line pt-4"
 				onsubmit={(event) => {
