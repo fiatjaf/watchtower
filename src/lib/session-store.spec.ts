@@ -1,6 +1,6 @@
 import { finalizeEvent } from './nostr/event';
 import { hexToBytes } from '@noble/hashes/utils.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Nip07Provider } from './nostr/signer';
 import type { EventTemplate } from './nostr/types';
 import { SESSION_STORAGE_KEY, type StorageLike } from './session';
@@ -135,6 +135,14 @@ describe('SessionStore', () => {
 		const badRelay = new SessionStore(new MemoryStorage(), () => extension());
 		await expect(badRelay.signIn('http://')).rejects.toThrow(/not a valid URL/);
 		expect(badRelay.isAuthenticated).toBe(false);
+	});
+
+	it('checks the relay URL before asking the extension to sign', async () => {
+		const getPublicKey = vi.fn(async () => PUBKEY);
+		const store = new SessionStore(new MemoryStorage(), () => extension({ getPublicKey }));
+
+		await expect(store.signIn('not-a-url')).rejects.toThrow(/not a valid URL/);
+		expect(getPublicKey).not.toHaveBeenCalled();
 	});
 
 	it('works without storage, for example in private mode', async () => {

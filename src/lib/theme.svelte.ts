@@ -2,23 +2,28 @@ import { browserStorage, type StorageLike } from './storage';
 
 export const THEME_STORAGE_KEY = 'tower.theme';
 
-export type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeMode = 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 
-/** Reads a stored preference, falling back to the system setting. */
-export function parseThemeMode(value: string | null): ThemeMode {
-	return value === 'light' || value === 'dark' ? value : 'system';
+/** Reads a stored preference; null when this browser has not chosen yet. */
+export function parseThemeMode(value: string | null): ThemeMode | null {
+	return value === 'light' || value === 'dark' ? value : null;
 }
 
-/** Applies the mode to the system preference to get the theme to show. */
-export function resolveTheme(mode: ThemeMode, systemPrefersDark: boolean): ResolvedTheme {
-	if (mode === 'system') return systemPrefersDark ? 'dark' : 'light';
-	return mode;
+/** The theme to show: the chosen one, or the system preference before any choice. */
+export function resolveTheme(mode: ThemeMode | null, systemPrefersDark: boolean): ResolvedTheme {
+	if (mode !== null) return mode;
+	return systemPrefersDark ? 'dark' : 'light';
+}
+
+function systemPrefersDark(): boolean {
+	return globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
 }
 
 /** Theme choice of the browser, kept in localStorage and applied to <html>. */
 export class ThemeStore {
-	mode = $state<ThemeMode>('system');
+	/** Null until the visitor picks light or dark themselves. */
+	mode = $state<ThemeMode | null>(null);
 	#storage: StorageLike | null;
 	#started = false;
 
@@ -26,7 +31,12 @@ export class ThemeStore {
 		this.#storage = storage;
 	}
 
-	/** Applies the stored mode and follows later system changes. Call once. */
+	/** The theme that is on screen right now. */
+	get resolved(): ResolvedTheme {
+		return resolveTheme(this.mode, systemPrefersDark());
+	}
+
+	/** Applies the stored choice and follows later system changes. Call once. */
 	start(): void {
 		if (this.#started) return;
 		this.#started = true;
@@ -34,7 +44,7 @@ export class ThemeStore {
 		this.#apply();
 
 		globalThis.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', () => {
-			if (this.mode === 'system') this.#apply();
+			if (this.mode === null) this.#apply();
 		});
 	}
 
@@ -49,10 +59,7 @@ export class ThemeStore {
 	}
 
 	#apply(): void {
-		const systemPrefersDark =
-			globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
-		const dark = resolveTheme(this.mode, systemPrefersDark) === 'dark';
-		globalThis.document?.documentElement.classList.toggle('dark', dark);
+		globalThis.document?.documentElement.classList.toggle('dark', this.resolved === 'dark');
 	}
 }
 

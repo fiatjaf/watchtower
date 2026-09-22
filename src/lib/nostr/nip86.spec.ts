@@ -6,6 +6,7 @@ import {
 	NIP86_CONTENT_TYPE,
 	Nip86AuthError,
 	Nip86Error,
+	Nip86UnsupportedError,
 	callNip86,
 	createNip86Client
 } from './nip86';
@@ -194,5 +195,28 @@ describe('callNip86', () => {
 		await expect(
 			callNip86({ relayUrl: RELAY_URL, signer, fetch }, 'supportedmethods')
 		).rejects.toThrow(/could not reach the relay/);
+	});
+
+	it('flags an address without a management API', async () => {
+		const { fetch } = fakeFetch(() => new Response('<!doctype html>', { status: 404 }));
+		await expect(
+			callNip86({ relayUrl: RELAY_URL, signer, fetch }, 'supportedmethods')
+		).rejects.toBeInstanceOf(Nip86UnsupportedError);
+	});
+
+	it('flags a response that is not a NIP-86 answer', async () => {
+		const { fetch } = fakeFetch(() => jsonResponse({ name: 'just a NIP-11 document' }));
+		await expect(
+			callNip86({ relayUrl: RELAY_URL, signer, fetch }, 'supportedmethods')
+		).rejects.toBeInstanceOf(Nip86UnsupportedError);
+	});
+
+	it('flags a relay that does not know the method', async () => {
+		const { fetch } = fakeFetch(() =>
+			jsonResponse({ error: 'method supportedmethods is not supported' })
+		);
+		await expect(
+			callNip86({ relayUrl: RELAY_URL, signer, fetch }, 'supportedmethods')
+		).rejects.toBeInstanceOf(Nip86UnsupportedError);
 	});
 });

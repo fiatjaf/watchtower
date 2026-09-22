@@ -25,7 +25,6 @@
 	const canDelete = $derived(admin.supports('deleterole'));
 	const canAssign = $derived(admin.supports('assignrole'));
 	const canUnassign = $derived(admin.supports('unassignrole'));
-	const canManage = $derived(canCreate || canEdit || canDelete || canAssign || canUnassign);
 
 	async function run(key: string, action: () => Promise<unknown>, message: string): Promise<void> {
 		error = null;
@@ -113,38 +112,35 @@
 		<Notice tone="success">{success}</Notice>
 	{/if}
 
-	{#if admin.ready && !canManage}
-		<Notice>
-			This relay does not support any of the role methods (createrole, editrole, deleterole,
-			assignrole, unassignrole).
-		</Notice>
-	{/if}
-
 	<Panel title="Role details" description="createrole / editrole / deleterole">
-		<div class="grid gap-3 sm:grid-cols-2">
-			<TextField label="Role id" bind:value={roleId} mono placeholder="moderator" />
-			<TextField label="Label" bind:value={label} placeholder="Moderator" />
-			<TextField label="Description" bind:value={description} placeholder="Can hide events" />
-			<TextField label="Color" bind:value={color} mono placeholder="#ff8800" />
-			<div class="sm:col-span-2 sm:max-w-32">
-				<TextField label="Order" bind:value={order} type="number" />
+		{#if admin.ready && !canCreate && !canEdit && !canDelete}
+			<Notice>This relay does not support createrole, editrole or deleterole.</Notice>
+		{:else if admin.ready}
+			<div class="grid gap-3 sm:grid-cols-2">
+				<TextField label="Role id" bind:value={roleId} mono placeholder="moderator" />
+				<TextField label="Label" bind:value={label} placeholder="Moderator" />
+				<TextField label="Description" bind:value={description} placeholder="Can hide events" />
+				<TextField label="Color" bind:value={color} mono placeholder="#ff8800" />
+				<div class="sm:col-span-2 sm:max-w-32">
+					<TextField label="Order" bind:value={order} type="number" />
+				</div>
 			</div>
-		</div>
-		<div class="flex flex-wrap gap-2 border-t border-line pt-4">
-			{#if canCreate}
-				<Button variant="primary" disabled={busy !== null} onclick={() => void create()}>
-					Create role
-				</Button>
-			{/if}
-			{#if canEdit}
-				<Button disabled={busy !== null} onclick={() => void edit()}>Update role</Button>
-			{/if}
-			{#if canDelete}
-				<Button variant="danger" disabled={busy !== null} onclick={() => void remove()}>
-					Delete role
-				</Button>
-			{/if}
-		</div>
+			<div class="flex flex-wrap gap-2 border-t border-line pt-4">
+				{#if canCreate}
+					<Button variant="primary" disabled={busy !== null} onclick={() => void create()}>
+						Create role
+					</Button>
+				{/if}
+				{#if canEdit}
+					<Button disabled={busy !== null} onclick={() => void edit()}>Update role</Button>
+				{/if}
+				{#if canDelete}
+					<Button variant="danger" disabled={busy !== null} onclick={() => void remove()}>
+						Delete role
+					</Button>
+				{/if}
+			</div>
+		{/if}
 	</Panel>
 
 	<Panel title="Assign a role" description="assignrole / unassignrole">

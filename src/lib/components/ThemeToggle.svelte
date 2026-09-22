@@ -5,8 +5,7 @@
 
 	const options: Array<{ mode: ThemeMode; icon: IconName; label: string }> = [
 		{ mode: 'light', icon: 'sun', label: 'Light theme' },
-		{ mode: 'dark', icon: 'moon', label: 'Dark theme' },
-		{ mode: 'system', icon: 'monitor', label: 'Follow the system theme' }
+		{ mode: 'dark', icon: 'moon', label: 'Dark theme' }
 	];
 </script>
 
@@ -19,9 +18,9 @@
 		<button
 			type="button"
 			onclick={() => theme.set(option.mode)}
-			aria-pressed={theme.mode === option.mode}
+			aria-pressed={theme.resolved === option.mode}
 			title={option.label}
-			class="rounded p-1.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus/50 {theme.mode ===
+			class="rounded p-1.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus/50 {theme.resolved ===
 			option.mode
 				? 'bg-panel text-ink panel-shadow'
 				: 'text-muted hover:text-ink'}"

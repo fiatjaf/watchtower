@@ -25,26 +25,25 @@ class MemoryStorage implements StorageLike {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('parseThemeMode', () => {
-	it('accepts the three modes and falls back to system', () => {
+	it('accepts light and dark, and treats everything else as unchosen', () => {
 		expect(parseThemeMode('light')).toBe('light');
 		expect(parseThemeMode('dark')).toBe('dark');
-		expect(parseThemeMode('system')).toBe('system');
-		expect(parseThemeMode(null)).toBe('system');
-		expect(parseThemeMode('sepia')).toBe('system');
+		expect(parseThemeMode('system')).toBeNull();
+		expect(parseThemeMode(null)).toBeNull();
 	});
 });
 
 describe('resolveTheme', () => {
-	it('follows the system preference only in system mode', () => {
-		expect(resolveTheme('system', true)).toBe('dark');
-		expect(resolveTheme('system', false)).toBe('light');
+	it('follows the system preference until a theme is chosen', () => {
+		expect(resolveTheme(null, true)).toBe('dark');
+		expect(resolveTheme(null, false)).toBe('light');
 		expect(resolveTheme('light', true)).toBe('light');
 		expect(resolveTheme('dark', false)).toBe('dark');
 	});
 });
 
 describe('ThemeStore', () => {
-	it('starts from the stored mode and applies it to the document', () => {
+	it('starts from the stored choice and applies it to the document', () => {
 		const toggle = vi.fn();
 		vi.stubGlobal('document', { documentElement: { classList: { toggle } } });
 		vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: () => {} }));
@@ -55,7 +54,21 @@ describe('ThemeStore', () => {
 		store.start();
 
 		expect(store.mode).toBe('light');
+		expect(store.resolved).toBe('light');
 		expect(toggle).toHaveBeenCalledWith('dark', false);
+	});
+
+	it('follows the system preference when nothing is stored yet', () => {
+		const toggle = vi.fn();
+		vi.stubGlobal('document', { documentElement: { classList: { toggle } } });
+		vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: () => {} }));
+
+		const store = new ThemeStore(new MemoryStorage());
+		store.start();
+
+		expect(store.mode).toBeNull();
+		expect(store.resolved).toBe('dark');
+		expect(toggle).toHaveBeenCalledWith('dark', true);
 	});
 
 	it('remembers the chosen mode', () => {
@@ -68,6 +81,7 @@ describe('ThemeStore', () => {
 		store.set('dark');
 
 		expect(store.mode).toBe('dark');
+		expect(store.resolved).toBe('dark');
 		expect(storage.stored[THEME_STORAGE_KEY]).toBe('dark');
 		expect(toggle).toHaveBeenCalledWith('dark', true);
 	});
@@ -75,6 +89,7 @@ describe('ThemeStore', () => {
 	it('works without storage or a document, for example in tests', () => {
 		const store = new ThemeStore(null);
 		expect(() => store.start()).not.toThrow();
-		expect(store.mode).toBe('system');
+		expect(store.mode).toBeNull();
+		expect(store.resolved).toBe('light');
 	});
 });

@@ -17,23 +17,34 @@
 
 	let { children } = $props();
 
+	// Status, then the work queue, then the block/allow lists (people, content,
+	// network), then policy, and the relay's own settings last.
 	const links = [
 		{ href: resolve('/admin'), label: 'Overview' },
+		{ href: resolve('/admin/moderation'), label: 'Moderation' },
 		{ href: resolve('/admin/pubkeys'), label: 'Pubkeys' },
 		{ href: resolve('/admin/events'), label: 'Events' },
-		{ href: resolve('/admin/moderation'), label: 'Moderation' },
 		{ href: resolve('/admin/ips'), label: 'IPs' },
 		{ href: resolve('/admin/kinds'), label: 'Kinds' },
-		{ href: resolve('/admin/relay'), label: 'Relay' },
-		{ href: resolve('/admin/roles'), label: 'Roles' }
+		{ href: resolve('/admin/roles'), label: 'Roles' },
+		{ href: resolve('/admin/relay'), label: 'Relay' }
 	];
 
 	const statusLabels = {
-		offline: 'relay offline',
-		connecting: 'connecting...',
-		connected: 'relay connected',
-		authenticated: 'relay authenticated',
-		failed: 'authentication failed'
+		offline: 'offline',
+		connecting: 'connecting',
+		connected: 'connected',
+		authenticated: 'authenticated',
+		failed: 'auth failed'
+	} as const;
+
+	/** Longer explanation for the short label, shown on hover. */
+	const statusTitles = {
+		offline: 'Not connected to the relay',
+		connecting: 'Connecting to the relay',
+		connected: 'Connected; the relay has not asked for authentication',
+		authenticated: 'Connected and authenticated with NIP-42',
+		failed: 'The relay rejected our NIP-42 authentication'
 	} as const;
 
 	const statusDots = {
@@ -55,6 +66,21 @@
 	const canReconnect = $derived(
 		relayConnection.status === 'offline' || relayConnection.status === 'failed'
 	);
+
+	// Shown instead of the screens when the relay cannot be managed at all.
+	const failureTitles = {
+		unsupported: 'This relay does not offer the NIP-86 management API',
+		auth: 'This key cannot manage the relay',
+		error: 'The relay cannot be managed right now'
+	} as const;
+	const failureTexts = {
+		unsupported:
+			'WatchTower manages relays over the NIP-86 HTTP API on the same address as the websocket. This address answered something else: the relay may only speak websocket, or its management API is turned off.',
+		auth: 'The relay accepts management requests but rejected this key. Add the key to the relay admins (or use a key that is already allowed) and try again.',
+		error: 'The management API did not answer. Check that the relay is reachable and try again.'
+	} as const;
+	const failureTitle = $derived(admin.failure ? failureTitles[admin.failure] : '');
+	const failureText = $derived(admin.failure ? failureTexts[admin.failure] : '');
 
 	// The panel keeps one connection to the relay: the method list over HTTP
 	// and the websocket that the moderation screen reads events from.
@@ -87,64 +113,109 @@
 	}
 </script>
 
-<svelte:head><title>{pageTitle} | Tower</title></svelte:head>
+<svelte:head><title>{pageTitle} | WatchTower</title></svelte:head>
 
 {#if session.isAuthenticated}
-	<div class="min-h-screen bg-bg text-ink">
-		<header class="border-b border-line">
-			<div class="mx-auto flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-				<a class="flex items-center gap-2" href={resolve('/admin')}>
-					<Logo size="sm" />
-					<span class="text-sm font-semibold">Tower</span>
-				</a>
-
-				<div class="flex min-w-0 items-center gap-0.5">
-					<span class="truncate font-mono text-xs text-muted">{session.relayUrl}</span>
-					<CopyButton value={session.relayUrl} label="Copy the relay URL" />
-				</div>
-
-				<div class="ml-auto flex items-center gap-2">
-					<span class="hidden items-center gap-1.5 text-xs text-muted sm:flex">
-						<span class="size-1.5 rounded-full {statusDot}"></span>
-						{statusLabel}
-					</span>
-					{#if canReconnect}
-						<Button size="sm" onclick={() => relayConnection.start()}>
-							<Icon name="refresh" />
-							Reconnect
-						</Button>
-					{/if}
-					<ThemeToggle />
-					<Button size="sm" onclick={signOut}>
-						<Icon name="signout" />
-						<span class="hidden sm:inline">Sign out</span>
-					</Button>
-				</div>
-			</div>
-		</header>
-
-		<nav class="border-b border-line">
-			<div class="mx-auto flex max-w-3xl flex-wrap gap-1 px-4 py-2">
-				{#each links as link (link.href)}
-					<a
-						href={link.href}
-						aria-current={page.url.pathname === link.href ? 'page' : undefined}
-						class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors {page.url
-							.pathname === link.href
-							? 'bg-control font-medium text-ink'
-							: 'text-muted hover:bg-control/60 hover:text-ink'}"
-					>
-						{link.label}
+	<div class="flex min-h-screen flex-col bg-bg text-ink">
+		<div class="md:sticky md:top-0 md:z-20 md:bg-bg/90 md:backdrop-blur-sm">
+			<header class="border-b border-line">
+				<div class="mx-auto flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+					<a class="flex items-center gap-2" href={resolve('/admin')}>
+						<Logo size="sm" />
+						<span class="text-sm font-semibold">WatchTower</span>
 					</a>
-				{/each}
-			</div>
-		</nav>
 
-		<main class="mx-auto max-w-3xl px-4 py-6">
-			{@render children()}
+					<div class="flex min-w-0 items-center gap-0.5">
+						<span class="truncate font-mono text-xs text-muted">{session.relayUrl}</span>
+						<CopyButton value={session.relayUrl} label="Copy the relay URL" />
+					</div>
+
+					<div class="ml-auto flex items-center gap-2">
+						<span
+							class="flex items-center gap-1.5 text-xs text-muted"
+							title={statusTitles[relayConnection.status]}
+						>
+							<span class="size-1.5 rounded-full {statusDot}"></span>
+							<span class="hidden sm:inline">{statusLabel}</span>
+						</span>
+						{#if canReconnect}
+							<Button size="sm" onclick={() => relayConnection.start()}>
+								<Icon name="refresh" />
+								Reconnect
+							</Button>
+						{/if}
+						<ThemeToggle />
+						<Button size="sm" title="Sign out" onclick={signOut}>
+							<Icon name="signout" />
+							<span class="hidden sm:inline">Sign out</span>
+						</Button>
+					</div>
+				</div>
+			</header>
+
+			{#if !admin.failure}
+				<nav class="border-b border-line">
+					<div class="mx-auto flex max-w-3xl flex-wrap gap-1 px-4 py-2">
+						{#each links as link (link.href)}
+							<a
+								href={link.href}
+								aria-current={page.url.pathname === link.href ? 'page' : undefined}
+								class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors {page.url
+									.pathname === link.href
+									? 'bg-control font-medium text-ink'
+									: 'text-muted hover:bg-control/60 hover:text-ink'}"
+							>
+								{link.label}
+							</a>
+						{/each}
+					</div>
+				</nav>
+			{/if}
+		</div>
+
+		<main class="mx-auto w-full max-w-3xl px-4 py-6">
+			{#if admin.failure}
+				<div class="rounded-lg border border-line bg-panel p-5 panel-shadow">
+					<div class="flex items-start gap-3">
+						<span class="mt-0.5 text-amber-500"><Icon name="warning" size={18} /></span>
+						<div class="min-w-0 flex-1 space-y-3">
+							<div>
+								<h2 class="text-sm font-semibold">{failureTitle}</h2>
+								<p class="mt-1 text-sm text-muted">{failureText}</p>
+							</div>
+							{#if admin.error}
+								<p
+									class="rounded-md border border-line bg-control px-3 py-2 font-mono text-xs break-words text-muted"
+								>
+									{admin.error}
+								</p>
+							{/if}
+							<div class="flex flex-wrap gap-2">
+								<Button
+									variant="primary"
+									disabled={admin.loading}
+									onclick={() => void admin.load(true)}
+								>
+									{#if admin.loading}
+										<Spinner label="Trying again" />
+									{:else}
+										<Icon name="refresh" />
+									{/if}
+									Try again
+								</Button>
+								<Button onclick={signOut}>Sign out</Button>
+							</div>
+						</div>
+					</div>
+				</div>
+			{:else}
+				{@render children()}
+			{/if}
 		</main>
 
-		<Footer />
+		<div class="mt-auto">
+			<Footer />
+		</div>
 
 		{#if signerActivity.pending}
 			<div

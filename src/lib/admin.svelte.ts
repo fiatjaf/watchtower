@@ -1,10 +1,20 @@
 import {
 	Nip86AuthError,
+	Nip86UnsupportedError,
 	createNip86Client,
 	type Nip86Client,
 	type Nip86Method
 } from './nostr/nip86';
 import { session } from './session.svelte.js';
+
+/** Why the management API could not be read. */
+export type AdminFailure = 'unsupported' | 'auth' | 'error';
+
+export function classifyFailure(cause: unknown): AdminFailure {
+	if (cause instanceof Nip86AuthError) return 'auth';
+	if (cause instanceof Nip86UnsupportedError) return 'unsupported';
+	return 'error';
+}
 
 /** Turns errors from the management API into something a person can act on. */
 export function describeError(cause: unknown): string {
@@ -35,6 +45,8 @@ export class AdminStore {
 	/** True once the method list of the current session has been read. */
 	ready = $state(false);
 	error = $state<string | null>(null);
+	/** Set when the relay cannot be managed at all; the panel shows a notice. */
+	failure = $state<AdminFailure | null>(null);
 	#createClient: AdminClientFactory;
 	#loadedFor: string | null = null;
 	#inFlight: { key: string; promise: Promise<void> } | null = null;
@@ -62,6 +74,7 @@ export class AdminStore {
 		this.loading = false;
 		this.ready = false;
 		this.error = null;
+		this.failure = null;
 		this.#loadedFor = null;
 		this.#inFlight = null;
 	}
@@ -113,6 +126,7 @@ export class AdminStore {
 			if (sessionKey() !== key) return; // the session changed while we waited
 			this.methods = Array.isArray(methods) ? methods.filter((one) => typeof one === 'string') : [];
 			this.ready = true;
+			this.failure = null;
 			this.#loadedFor = key;
 		} catch (cause) {
 			if (sessionKey() !== key) return;
@@ -120,6 +134,7 @@ export class AdminStore {
 			this.ready = false;
 			this.#loadedFor = null;
 			this.error = describeError(cause);
+			this.failure = classifyFailure(cause);
 		} finally {
 			if (sessionKey() === key) {
 				this.loading = false;

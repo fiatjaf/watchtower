@@ -9,6 +9,7 @@
 		variant?: Variant;
 		size?: Size;
 		disabled?: boolean;
+		title?: string;
 		onclick?: (event: MouseEvent) => void;
 		children: Snippet;
 	}
@@ -18,6 +19,7 @@
 		variant = 'secondary',
 		size = 'md',
 		disabled = false,
+		title,
 		onclick,
 		children
 	}: Props = $props();
@@ -38,6 +40,7 @@
 <button
 	{type}
 	{disabled}
+	{title}
 	{onclick}
 	class="inline-flex items-center justify-center rounded-md font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus/50 disabled:pointer-events-none disabled:opacity-50 {variants[
 		variant

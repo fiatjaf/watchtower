@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminStore } from './admin.svelte.js';
-import type { Nip86Client } from './nostr/nip86';
+import { Nip86AuthError, Nip86UnsupportedError, type Nip86Client } from './nostr/nip86';
 import type { Nip07Provider } from './nostr/signer';
 import { session } from './session.svelte.js';
 
@@ -105,6 +105,48 @@ describe('AdminStore', () => {
 
 		expect(store.methods).toEqual([]);
 		expect(store.ready).toBe(true);
+	});
+
+	it('marks a relay without a management API as unsupported', async () => {
+		const { client } = fakeClient(async () => {
+			throw new Nip86UnsupportedError('the relay has no management API at this address (HTTP 404)');
+		});
+		const store = new AdminStore(() => client);
+
+		await store.load();
+
+		expect(store.failure).toBe('unsupported');
+		expect(store.ready).toBe(false);
+	});
+
+	it('marks a rejected key as an authentication problem', async () => {
+		const { client } = fakeClient(async () => {
+			throw new Nip86AuthError('relay rejected the request (HTTP 401)');
+		});
+		const store = new AdminStore(() => client);
+
+		await store.load();
+
+		expect(store.failure).toBe('auth');
+	});
+
+	it('clears the failure once the relay answers', async () => {
+		let failing = true;
+		const { client } = fakeClient(async () => {
+			if (failing) throw new Nip86UnsupportedError('nope');
+			return ['banpubkey'];
+		});
+		const store = new AdminStore(() => client);
+
+		await store.load();
+		expect(store.failure).toBe('unsupported');
+
+		failing = false;
+		await store.load(true);
+
+		expect(store.failure).toBeNull();
+		expect(store.ready).toBe(true);
+		expect(store.methods).toEqual(['banpubkey']);
 	});
 
 	it('forgets everything on reset', async () => {

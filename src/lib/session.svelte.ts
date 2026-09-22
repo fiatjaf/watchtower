@@ -41,8 +41,10 @@ export class SessionStore {
 			throw new Error('no NIP-07 browser extension was found');
 		}
 
-		const pubkey = await this.#signer(provider).getPublicKey();
+		// Check the address first: no point asking the extension to sign in for
+		// a relay URL that cannot be used.
 		const normalized = normalizeRelayUrl(relayUrl);
+		const pubkey = await this.#signer(provider).getPublicKey();
 
 		this.pubkey = pubkey;
 		this.relayUrl = normalized;

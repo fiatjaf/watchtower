@@ -1,9 +1,12 @@
 <script lang="ts">
+	import { iconPaths } from './icons';
+
 	interface Props {
+		/** Space for screen readers; the spinner is decorative by default. */
 		label?: string;
 	}
 
-	let { label = 'Loading' }: Props = $props();
+	let { label }: Props = $props();
 </script>
 
 <svg
@@ -12,11 +15,13 @@
 	height="16"
 	fill="none"
 	stroke="currentColor"
-	stroke-width="2"
+	stroke-width="1.5"
 	stroke-linecap="round"
+	stroke-linejoin="round"
 	class="animate-spin motion-reduce:animate-none"
-	role="status"
+	role={label ? 'status' : undefined}
 	aria-label={label}
+	aria-hidden={label ? undefined : 'true'}
 >
-	<path d="M12 4a8 8 0 018 8" />
+	<path d={iconPaths.refresh} />
 </svg>

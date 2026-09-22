@@ -184,7 +184,9 @@
 							<span class="truncate font-mono text-xs text-ink">{item.id}</span>
 							<CopyButton value={item.id} label="Copy the event id" />
 							{#if item.reason}
-								<Badge>{item.reason}</Badge>
+								<span class="ml-auto shrink-0 pl-2">
+									<Badge>{item.reason}</Badge>
+								</span>
 							{/if}
 						</div>
 

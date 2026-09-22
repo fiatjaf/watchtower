@@ -47,6 +47,8 @@ export interface Nip86Response {
 
 export class Nip86Error extends Error {}
 export class Nip86AuthError extends Nip86Error {}
+/** The relay does not answer NIP-86 requests at this address at all. */
+export class Nip86UnsupportedError extends Nip86Error {}
 
 export interface Nip86ClientOptions {
 	/** Relay URL as the user typed it; ws(s) or http(s). */
@@ -134,26 +136,42 @@ export async function callNip86<T = unknown>(
 		}
 	}
 
+	if (response.status === 404 || response.status === 405) {
+		throw new Nip86UnsupportedError(
+			`the relay has no management API at this address (HTTP ${response.status})`
+		);
+	}
+
 	const text = await response.text();
 	let payload: unknown;
 	try {
 		payload = JSON.parse(text);
 	} catch (cause) {
-		throw new Nip86Error(`relay returned invalid JSON (HTTP ${response.status})`, { cause });
+		throw new Nip86UnsupportedError(`the relay returned invalid JSON (HTTP ${response.status})`, {
+			cause
+		});
 	}
 	if (typeof payload !== 'object' || payload === null) {
-		throw new Nip86Error(
-			`relay returned ${text.trim().slice(0, 60) || 'an empty body'} (HTTP ${response.status})`
+		throw new Nip86UnsupportedError(
+			`the relay returned ${text.trim().slice(0, 60) || 'an empty body'} instead of a NIP-86 response (HTTP ${response.status})`
 		);
 	}
 
 	// Relays such as khatru answer 200 and put failures into `error`.
 	const { result, error } = payload as Nip86Response;
 	if (typeof error === 'string' && error !== '') {
+		if (/not supported|not known|unknown method/i.test(error)) {
+			throw new Nip86UnsupportedError(error);
+		}
 		throw new Nip86Error(error);
 	}
 	if (!response.ok) {
 		throw new Nip86Error(`relay returned HTTP ${response.status}`);
+	}
+	// A NIP-86 response always carries `result` or `error`; anything else is some
+	// other endpoint answering on the same address.
+	if (!('result' in payload)) {
+		throw new Nip86UnsupportedError('the relay did not answer as a NIP-86 endpoint');
 	}
 	return result as T;
 }

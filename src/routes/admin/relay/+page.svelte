@@ -251,6 +251,8 @@
 						label="Description"
 						bind:value={description}
 						placeholder="A relay for friends"
+						multiline
+						rows={3}
 					/>
 				</div>
 				<Button type="submit" disabled={busy !== null}>Change description</Button>

@@ -52,7 +52,7 @@
 	}
 </script>
 
-<svelte:head><title>Sign in | Tower</title></svelte:head>
+<svelte:head><title>Sign in | WatchTower</title></svelte:head>
 
 <div class="relative flex min-h-screen flex-col bg-bg px-4 text-ink">
 	<div class="absolute top-4 right-4">
@@ -64,7 +64,7 @@
 			<div class="flex items-center gap-2.5">
 				<Logo />
 				<div>
-					<h1 class="text-base font-semibold">Tower</h1>
+					<h1 class="text-base font-semibold">WatchTower</h1>
 					<p class="text-xs text-muted">NIP-86 relay admin panel</p>
 				</div>
 			</div>

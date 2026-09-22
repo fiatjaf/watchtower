@@ -11,7 +11,8 @@ Nostr NIP-86（Relay Management API）専用のリレー管理者パネル。
 - HTTP 認証は NIP-98、WebSocket 認証は NIP-42（どちらも拡張に署名を依頼する）
 - リレー情報は NIP-11（`Accept: application/nostr+json`）から読み込む
 - 管理画面では WebSocket を常時接続し、切断時は自動で再接続する
-- ライト / ダーク / システム追従のテーマ切替（選択は localStorage に保存）
+- ライト / ダークのテーマ切替（初回のみシステム設定に追従、選択は localStorage に保存）
+- アイコンは Heroicons（MIT、`LICENSES/heroicons.txt`）
 - 画面の色は `src/routes/layout.css` のセマンティックトークン（`bg` / `panel` / `line` / `ink` / `muted`）で統一
 
 ## 開発
