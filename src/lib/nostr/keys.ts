@@ -1,6 +1,7 @@
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { bech32 } from '@scure/base';
+import { isHexBytes } from './hex';
 
 const SECRET_KEY_BYTES = 32;
 const PUBKEY_BYTES = 32;
@@ -49,6 +50,15 @@ export function pubkeyToBytes(pubkey: string): Uint8Array {
 		throw new Error('public key must be 32 bytes of hex');
 	}
 	return hexToBytes(value);
+}
+
+/** Accepts either a hex public key or an npub and returns 32-byte hex. */
+export function pubkeyHexFromInput(input: string): string {
+	const value = input.trim();
+	if (isHexBytes(value, PUBKEY_BYTES)) {
+		return value.toLowerCase();
+	}
+	return pubkeyFromNpub(value);
 }
 
 function decodeBech32(

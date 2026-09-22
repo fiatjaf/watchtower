@@ -6,6 +6,7 @@ import {
 	npubFromPubkey,
 	pubkeyFromNpub,
 	pubkeyFromSecretKey,
+	pubkeyHexFromInput,
 	pubkeyToBytes,
 	secretKeyFromNsec
 } from './keys';
@@ -78,5 +79,18 @@ describe('pubkeyToBytes', () => {
 	it('rejects values that are not 32 bytes of hex', () => {
 		expect(() => pubkeyToBytes('deadbeef')).toThrow(/32 bytes of hex/);
 		expect(() => pubkeyToBytes(`z${PUBKEY.slice(1)}`)).toThrow(/32 bytes of hex/);
+	});
+});
+
+describe('pubkeyHexFromInput', () => {
+	it('accepts hex and npub input, with surrounding whitespace', () => {
+		expect(pubkeyHexFromInput(PUBKEY.toUpperCase())).toBe(PUBKEY);
+		expect(pubkeyHexFromInput(NPUB)).toBe(PUBKEY);
+		expect(pubkeyHexFromInput(`  ${NPUB}  `)).toBe(PUBKEY);
+	});
+
+	it('rejects values that are neither a pubkey nor an npub', () => {
+		expect(() => pubkeyHexFromInput('deadbeef')).toThrow();
+		expect(() => pubkeyHexFromInput(NSEC)).toThrow(/expected an npub string/);
 	});
 });

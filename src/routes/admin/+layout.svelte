@@ -1,9 +1,21 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { session } from '$lib/session.svelte.js';
 
 	let { children } = $props();
+
+	const links = [
+		{ href: resolve('/admin'), label: 'Overview' },
+		{ href: resolve('/admin/pubkeys'), label: 'Pubkeys' },
+		{ href: resolve('/admin/events'), label: 'Events' },
+		{ href: resolve('/admin/moderation'), label: 'Moderation' },
+		{ href: resolve('/admin/ips'), label: 'IPs' },
+		{ href: resolve('/admin/kinds'), label: 'Kinds' },
+		{ href: resolve('/admin/relay'), label: 'Relay' },
+		{ href: resolve('/admin/roles'), label: 'Roles' }
+	];
 
 	$effect(() => {
 		if (!session.isAuthenticated) {
@@ -39,7 +51,24 @@
 				</div>
 			</div>
 		</header>
-		<main class="mx-auto max-w-3xl px-4 py-8">
+
+		<nav class="border-b border-neutral-800">
+			<div class="mx-auto flex max-w-3xl gap-1 overflow-x-auto px-4">
+				{#each links as link (link.href)}
+					<a
+						href={link.href}
+						class="-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap {page.url.pathname ===
+						link.href
+							? 'border-neutral-200 text-neutral-100'
+							: 'border-transparent text-neutral-400 hover:text-neutral-200'}"
+					>
+						{link.label}
+					</a>
+				{/each}
+			</div>
+		</nav>
+
+		<main class="mx-auto max-w-3xl px-4 py-6">
 			{@render children()}
 		</main>
 	</div>
