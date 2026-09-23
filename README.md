@@ -104,6 +104,20 @@ npm run format  # rewrite files with Prettier
 - A relay that gates reads needs the signed-in key to be allowed to read before the moderation and role
   screens can show anything.
 
+## Deploying
+
+The build output in `build/` is a static single-page app. It is deployed to Cloudflare Workers with
+static assets (`wrangler.jsonc`): `assets.directory` points at `build/` and
+`not_found_handling: single-page-application` makes deep links such as `/admin/pubkeys` work, so no
+`_redirects` rule is needed.
+
+```sh
+npm run deploy   # wrangler types --check && vite build, then wrangler deploy
+```
+
+The build runs `wrangler types --check`, so `worker-configuration.d.ts` is kept in the repository; rerun
+`npx wrangler types` after changing `wrangler.jsonc`.
+
 ## Sponsoring
 
 If WatchTower is useful to you, you can support its development through
